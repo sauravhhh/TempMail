@@ -58,6 +58,12 @@ button:disabled{opacity:.5; cursor:wait;}
 .custom input::placeholder{color:var(--muted);}
 .inbox-head{display:flex; align-items:center; justify-content:space-between; margin:22px 2px 12px;}
 .inbox-head h2{font-size:17px; margin:0;}
+.inbox-tools{display:flex; align-items:center; gap:10px;}
+.btn-refresh{
+  padding:8px 14px; font-size:13px; font-weight:700;
+  border:1px solid var(--border); border-radius:10px;
+  background:var(--bg); color:var(--text);
+}
 .status{font-size:13px; color:var(--muted);}
 .status .dotpulse{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--green); margin-right:6px; animation:pulse 2s infinite;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
@@ -113,7 +119,10 @@ button:disabled{opacity:.5; cursor:wait;}
 
   <div class="inbox-head">
     <h2>Inbox</h2>
-    <span class="status" id="status"><span class="dotpulse"></span>Live</span>
+    <div class="inbox-tools">
+      <span class="status" id="status"><span class="dotpulse"></span>Live</span>
+      <button id="refresh" class="btn-refresh">Refresh</button>
+    </div>
   </div>
   <div id="inbox"></div>
 
