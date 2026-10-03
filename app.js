@@ -141,28 +141,39 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
 
   function makeFrame(html){
     var f = document.createElement('iframe');
-    // allow-same-origin (no scripts) so we can auto-size the frame to its
-    // content: the whole email reads in one page scroll, no nested scroller.
+    // allow-same-origin but NO scripts: the parent can measure and scale the
+    // email to fit, while email JavaScript stays blocked.
     f.setAttribute('sandbox', 'allow-same-origin');
     f.setAttribute('srcdoc',
       '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<style>' +
-      '*{box-sizing:border-box;max-width:100%!important;}' +
-      'html,body{margin:0!important;padding:0!important;overflow-x:hidden!important;}' +
-      'body{padding:8px!important;font-family:sans-serif;font-size:14px;line-height:1.6;color:#111;overflow-wrap:anywhere!important;word-break:break-word;}' +
-      'img{max-width:100%!important;height:auto!important;}' +
-      'table{max-width:100%!important;}' +
-      'pre{white-space:pre-wrap!important;overflow-wrap:anywhere!important;}' +
-      'a{overflow-wrap:anywhere!important;}' +
+      'html,body{margin:0!important;padding:0!important;}' +
+      'body{padding:8px;font-family:sans-serif;font-size:14px;line-height:1.6;color:#111;overflow-wrap:anywhere;word-break:break-word;}' +
+      'img{max-width:100%;height:auto;}' +
+      'pre{white-space:pre-wrap;overflow-wrap:anywhere;}' +
+      'a{overflow-wrap:anywhere;}' +
+      '#emroot{transform-origin:top left;}' +
       '</style>' +
-      '</head><body>' + html + '</body></html>');
-    f.style.cssText = 'width:100%;max-width:100%;height:160px;border:0;border-radius:8px;background:#fff;display:block;';
+      '</head><body><div id="emroot">' + html + '</div></body></html>');
+    f.style.cssText = 'width:100%;max-width:100%;height:160px;border:0;border-radius:8px;background:#fff;display:block;overflow:hidden;';
     function fit(){
       try {
         var d = f.contentDocument;
-        if(d && d.documentElement){
-          var h = Math.max(d.documentElement.scrollHeight, 120);
-          f.style.height = h + 'px';
+        if(!d) return;
+        var root = d.getElementById('emroot');
+        if(!root) return;
+        root.style.transform = '';
+        root.style.width = '';
+        var availW = f.clientWidth || 320;
+        var natW = root.scrollWidth || availW;
+        var natH = root.scrollHeight || 120;
+        if(natW > availW + 1){
+          var s = availW / natW;
+          root.style.width = natW + 'px';
+          root.style.transform = 'scale(' + s + ')';
+          f.style.height = Math.ceil(natH * s + 16) + 'px';
+        } else {
+          f.style.height = Math.ceil(natH + 16) + 'px';
         }
       } catch(e){}
     }
