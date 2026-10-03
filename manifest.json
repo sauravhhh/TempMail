@@ -1,0 +1,1 @@
+{"background_color":"#111111","description":"Disposable temporary email inbox.","display":"standalone","icons":[{"sizes":"192x192","src":"icon-192.png","type":"image/png"},{"purpose":"any maskable","sizes":"512x512","src":"icon-512.png","type":"image/png"}],"name":"TempMail","orientation":"portrait","scope":"./","short_name":"TempMail","start_url":"./","theme_color":"#111111"}
