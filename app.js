@@ -280,7 +280,7 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
   } else {
     newAddress();
   }
-  timer = setInterval(function(){ checkInbox(false); }, 15000);
+  timer = setInterval(function(){ checkInbox(false); }, 60000);
   $('refresh').addEventListener('click', function(){ checkInbox(true); });
 }
 
