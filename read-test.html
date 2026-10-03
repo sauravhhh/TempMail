@@ -2,7 +2,7 @@
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>readability test</title></head>
 <body>
-<div id="t"></div>
+<div id="dbg" style="font:14px monospace;padding:10px;background:#ffffcc;border:2px solid #000;margin:10px;word-break:break-all;"></div><div id="t"></div>
 <script>
 function makeFrame(html){
     var f = document.createElement('iframe');
@@ -21,12 +21,13 @@ function makeFrame(html){
       '</style>' +
       '</head><body><div id="emroot">' + html + '</div></body></html>');
     f.style.cssText = 'width:100%;max-width:100%;height:160px;border:0;border-radius:8px;background:#fff;display:block;overflow:hidden;';
+    var dbg = document.getElementById('dbg');
     function fit(){
       try {
         var d = f.contentDocument;
-        if(!d) return;
+        if(!d){ dbg.textContent = 'ERR: no contentDocument'; return; }
         var root = d.getElementById('emroot');
-        if(!root) return;
+        if(!root){ dbg.textContent = 'ERR: no emroot'; return; }
         root.style.transform = '';
         root.style.width = '';
         var availW = f.clientWidth || 320;
@@ -40,7 +41,8 @@ function makeFrame(html){
         } else {
           f.style.height = Math.ceil(natH + 16) + 'px';
         }
-      } catch(e){}
+        dbg.textContent = 'availW=' + availW + ' natW=' + natW + ' natH=' + natH + ' scale=' + (natW > availW + 1 ? (availW/natW).toFixed(3) : 'none') + ' finalH=' + f.style.height;
+      } catch(e){ dbg.textContent = 'EXC: ' + e.message; }
     }
     f.addEventListener('load', function(){
       fit();
