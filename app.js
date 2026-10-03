@@ -66,8 +66,10 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
       toastEl = $('toast'), toastT = null;
   var sid = localStorage.getItem('tm_sid') || '';
   var email = localStorage.getItem('tm_email') || '';
-  var seq = 0;
   var readIds = {};
+  var openIds = {};
+  var bodyCache = {};
+  var lastIds = '';
   var lastCheck = 0;
   var timer = null;
 
@@ -98,11 +100,12 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
   function newAddress(){
     setStatus('Creating…');
     apiGetAddress().then(function(d){
-      sid = d.sid_token; email = d.email_addr; seq = 0; readIds = {};
+      sid = d.sid_token; email = d.email_addr;
+      readIds = {}; openIds = {}; bodyCache = {}; lastIds = '';
       save();
       addrEl.textContent = email;
       renderEmpty();
-      checkInbox();
+      checkInbox(false);
       toast('New address ready');
     }).catch(function(){
       setStatus('Offline');
@@ -114,22 +117,37 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
     inboxEl.innerHTML = '<div class="empty">Inbox is empty.<br>Waiting for mail…</div>';
   }
 
-  function checkInbox(){
+  function mailIds(list){
+    return list.map(function(m){ return m.mail_id; }).sort().join(',');
+  }
+
+  function checkInbox(force){
     if(!sid){ newAddress(); return; }
-    setStatus('<span class="dotpulse"></span>Checking…');
-    apiCheck(sid, seq).then(function(d){
+    if(force) setStatus('<span class="dotpulse"></span>Checking…');
+    apiCheck(sid, 0).then(function(d){
       lastCheck = Date.now();
       var list = d.list || [];
-      if(list.length){
-        seq = d.seq || seq;
-        renderList(list);
-      } else if(!inboxEl.querySelector('.mail')){
-        renderEmpty();
+      var ids = mailIds(list);
+      if(ids !== lastIds){
+        lastIds = ids;
+        if(list.length) renderList(list);
+        else renderEmpty();
       }
       setStatus('<span class="dotpulse"></span>Live');
     }).catch(function(){
       setStatus('Offline — retrying');
     });
+  }
+
+  function makeFrame(html){
+    var f = document.createElement('iframe');
+    f.setAttribute('sandbox', '');
+    f.setAttribute('srcdoc',
+      '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<style>body{margin:0;padding:6px;font-family:sans-serif;font-size:14px;line-height:1.6;color:#111;word-break:break-word;}img{max-width:100%;height:auto;}table{max-width:100%;}pre{white-space:pre-wrap;font-family:sans-serif;}</style>' +
+      '</head><body>' + html + '</body></html>');
+    f.style.cssText = 'width:100%;height:52vh;border:0;border-radius:8px;background:#fff;display:block;';
+    return f;
   }
 
   function renderList(list){
@@ -140,8 +158,9 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
     inboxEl.innerHTML = '';
     items.forEach(function(m){
       var id = m.mail_id;
+      var isOpen = !!openIds[id];
       var div = document.createElement('div');
-      div.className = 'mail' + (readIds[id] ? '' : ' unread');
+      div.className = 'mail' + (readIds[id] ? '' : ' unread') + (isOpen ? ' open' : '');
       div.dataset.id = id;
       var top = document.createElement('div'); top.className = 'mail-top';
       var from = document.createElement('div'); from.className = 'mail-from';
@@ -152,7 +171,12 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
       var sub = document.createElement('div'); sub.className = 'mail-sub';
       sub.textContent = m.mail_subject || '(no subject)';
       var body = document.createElement('div'); body.className = 'mail-body';
-      body.innerHTML = '<span style="color:var(--muted)">Loading…</span>';
+      if(isOpen && bodyCache[id]){
+        body.dataset.loaded = '1';
+        body.appendChild(makeFrame(bodyCache[id]));
+      } else {
+        body.innerHTML = '<span style="color:var(--muted)">Loading…</span>';
+      }
       div.appendChild(top); div.appendChild(sub); div.appendChild(body);
       div.addEventListener('click', function(){ toggleMail(div, id, body); });
       inboxEl.appendChild(div);
@@ -162,21 +186,28 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
   function toggleMail(div, id, bodyEl){
     var opening = !div.classList.contains('open');
     div.classList.toggle('open');
-    if(!opening) return;
+    if(!opening){ delete openIds[id]; return; }
+    openIds[id] = true;
     if(bodyEl.dataset.loaded) return;
+    if(bodyCache[id]){ showBody(div, id, bodyEl, bodyCache[id]); return; }
     apiFetch(sid, id).then(function(d){
-      bodyEl.dataset.loaded = '1';
-      var html = d.mail_body || '';
-      if(!html.trim()){
-        bodyEl.textContent = '(empty message)';
-      } else {
-        bodyEl.innerHTML = html;
-      }
-      readIds[id] = true;
-      div.classList.remove('unread');
+      showBody(div, id, bodyEl, d.mail_body || '');
     }).catch(function(){
       bodyEl.innerHTML = '<span style="color:var(--muted)">Could not load message.</span>';
     });
+  }
+
+  function showBody(div, id, bodyEl, html){
+    bodyEl.dataset.loaded = '1';
+    bodyEl.innerHTML = '';
+    bodyCache[id] = html;
+    if(!html.trim()){
+      bodyEl.textContent = '(empty message)';
+    } else {
+      bodyEl.appendChild(makeFrame(html));
+    }
+    readIds[id] = true;
+    div.classList.remove('unread');
   }
 
   $('copy').addEventListener('click', function(){ copyText(email, 'Address copied'); });
@@ -190,11 +221,12 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
     setStatus('Setting…');
     apiSetUser(sid, n).then(function(d){
       if(d.email_addr){
-        email = d.email_addr; seq = 0; readIds = {};
+        email = d.email_addr;
+        readIds = {}; openIds = {}; bodyCache = {}; lastIds = '';
         save();
         addrEl.textContent = email;
         renderEmpty();
-        checkInbox();
+        checkInbox(true);
         toast('Address updated');
       } else {
         toast('Name taken, try another');
@@ -209,11 +241,12 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
   // boot
   if(email && sid){
     addrEl.textContent = email;
-    checkInbox();
+    checkInbox(false);
   } else {
     newAddress();
   }
-  timer = setInterval(checkInbox, 15000);
+  timer = setInterval(function(){ checkInbox(false); }, 15000);
+  $('refresh').addEventListener('click', function(){ checkInbox(true); });
 }
 
 if(typeof module !== 'undefined' && module.exports){
