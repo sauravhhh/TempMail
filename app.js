@@ -144,9 +144,17 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
     f.setAttribute('sandbox', '');
     f.setAttribute('srcdoc',
       '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
-      '<style>body{margin:0;padding:6px;font-family:sans-serif;font-size:14px;line-height:1.6;color:#111;word-break:break-word;}img{max-width:100%;height:auto;}table{max-width:100%;}pre{white-space:pre-wrap;font-family:sans-serif;}</style>' +
+      '<style>' +
+      '*{box-sizing:border-box;max-width:100%;}' +
+      'html,body{margin:0!important;padding:0!important;overflow-x:hidden!important;}' +
+      'body{padding:8px!important;font-family:sans-serif;font-size:14px;line-height:1.6;color:#111;overflow-wrap:anywhere!important;word-break:break-word;}' +
+      'img{max-width:100%!important;height:auto!important;}' +
+      'table{display:block!important;overflow-x:auto!important;max-width:100%!important;}' +
+      'pre{white-space:pre-wrap!important;overflow-wrap:anywhere!important;}' +
+      'a{overflow-wrap:anywhere!important;}' +
+      '</style>' +
       '</head><body>' + html + '</body></html>');
-    f.style.cssText = 'width:100%;height:52vh;border:0;border-radius:8px;background:#fff;display:block;';
+    f.style.cssText = 'width:100%;max-width:100%;height:52vh;border:0;border-radius:8px;background:#fff;display:block;';
     return f;
   }
 
