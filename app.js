@@ -141,20 +141,36 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
 
   function makeFrame(html){
     var f = document.createElement('iframe');
-    f.setAttribute('sandbox', '');
+    // allow-same-origin (no scripts) so we can auto-size the frame to its
+    // content: the whole email reads in one page scroll, no nested scroller.
+    f.setAttribute('sandbox', 'allow-same-origin');
     f.setAttribute('srcdoc',
       '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<style>' +
-      '*{box-sizing:border-box;max-width:100%;}' +
+      '*{box-sizing:border-box;max-width:100%!important;}' +
       'html,body{margin:0!important;padding:0!important;overflow-x:hidden!important;}' +
       'body{padding:8px!important;font-family:sans-serif;font-size:14px;line-height:1.6;color:#111;overflow-wrap:anywhere!important;word-break:break-word;}' +
       'img{max-width:100%!important;height:auto!important;}' +
-      'table{display:block!important;overflow-x:auto!important;max-width:100%!important;}' +
+      'table{max-width:100%!important;}' +
       'pre{white-space:pre-wrap!important;overflow-wrap:anywhere!important;}' +
       'a{overflow-wrap:anywhere!important;}' +
       '</style>' +
       '</head><body>' + html + '</body></html>');
-    f.style.cssText = 'width:100%;max-width:100%;height:52vh;border:0;border-radius:8px;background:#fff;display:block;';
+    f.style.cssText = 'width:100%;max-width:100%;height:160px;border:0;border-radius:8px;background:#fff;display:block;';
+    function fit(){
+      try {
+        var d = f.contentDocument;
+        if(d && d.documentElement){
+          var h = Math.max(d.documentElement.scrollHeight, 120);
+          f.style.height = h + 'px';
+        }
+      } catch(e){}
+    }
+    f.addEventListener('load', function(){
+      fit();
+      setTimeout(fit, 600);
+      setTimeout(fit, 2000);
+    });
     return f;
   }
 
