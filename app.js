@@ -125,6 +125,11 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
     if(!sid){ newAddress(); return; }
     if(force) setStatus('<span class="dotpulse"></span>Checking…');
     apiCheck(sid, 0).then(function(d){
+      if(d && d.error){
+        // Session expired (or API hiccup): never wipe the visible inbox.
+        onSessionExpired();
+        return;
+      }
       lastCheck = Date.now();
       var list = d.list || [];
       var ids = mailIds(list);
@@ -134,9 +139,46 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
         else renderEmpty();
       }
       setStatus('<span class="dotpulse"></span>Live');
+      restoreTried = false;
     }).catch(function(){
       setStatus('Offline — retrying');
     });
+  }
+
+  var restoring = false;
+  var restoreTried = false;
+  function onSessionExpired(){
+    if(restoring || restoreTried){
+      setStatus('Session expired');
+      return;
+    }
+    var login = splitEmail(email).login;
+    if(!login){
+      setStatus('Session expired');
+      toast('Session expired. Tap New address.');
+      return;
+    }
+    restoring = true;
+    restoreTried = true;
+    setStatus('Session expired — restoring…');
+    // Try to reclaim the same address with a fresh session; Guerrilla keeps
+    // addresses (and their mail) for about an hour.
+    apiGetAddress().then(function(d2){
+      return apiSetUser(d2.sid_token, login).then(function(d3){
+        if(d3.email_addr === email){
+          sid = d2.sid_token;
+          save();
+          lastIds = '';
+          toast('Address restored');
+          checkInbox(true);
+        } else {
+          throw new Error('taken');
+        }
+      });
+    }).catch(function(){
+      setStatus('Session expired');
+      toast('Session expired. Tap New address.');
+    }).then(function(){ restoring = false; });
   }
 
   function makeFrame(html){
