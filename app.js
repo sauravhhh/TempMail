@@ -73,6 +73,67 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
   var lastCheck = 0;
   var timer = null;
 
+  // ---- local mail cache: incoming mails stay on the phone for a day,
+  // keyed per address, so the inbox survives session expiry and reloads.
+  var CACHE_TTL = 24*3600*1000, CACHE_MAX = 50, BODY_MAX = 100*1024;
+  var mailCache = {};
+  function cacheKey(){ return 'tm_mails_' + (splitEmail(email).login || 'none'); }
+  function readKey(){ return 'tm_read_' + (splitEmail(email).login || 'none'); }
+  function loadCache(){
+    var out = {};
+    try {
+      var c = JSON.parse(localStorage.getItem(cacheKey()) || '{}');
+      var now = Date.now();
+      Object.keys(c).forEach(function(k){
+        if(c[k] && now - (c[k].cachedAt || 0) < CACHE_TTL) out[k] = c[k];
+      });
+    } catch(e){}
+    return out;
+  }
+  function saveCache(){
+    try {
+      var keys = Object.keys(mailCache).sort(function(a,b){
+        return (mailCache[b].ts||0) - (mailCache[a].ts||0);
+      }).slice(0, CACHE_MAX);
+      var slim = {};
+      keys.forEach(function(k){ slim[k] = mailCache[k]; });
+      mailCache = slim;
+      localStorage.setItem(cacheKey(), JSON.stringify(slim));
+    } catch(e){
+      try {
+        Object.keys(mailCache).forEach(function(k){ delete mailCache[k].body; });
+        localStorage.setItem(cacheKey(), JSON.stringify(mailCache));
+      } catch(e2){}
+    }
+  }
+  function cachedList(){
+    return Object.keys(mailCache).map(function(k){
+      var n = mailCache[k];
+      return { mail_id:n.id, mail_from:n.from, mail_subject:n.subject, mail_timestamp:n.ts };
+    }).sort(function(a,b){ return (b.mail_timestamp||0) - (a.mail_timestamp||0); });
+  }
+  function cacheBody(id, html){
+    var n = mailCache[id];
+    if(!n || !html || html.length > BODY_MAX) return;
+    n.body = html; n.cachedAt = Date.now();
+    saveCache();
+  }
+  function loadRead(){
+    try { return JSON.parse(localStorage.getItem(readKey()) || '[]'); }
+    catch(e){ return []; }
+  }
+  function saveRead(){
+    try { localStorage.setItem(readKey(), JSON.stringify(Object.keys(readIds).slice(0,200))); }
+    catch(e){}
+  }
+  // Call after changing `email`: stashes the old address state, loads the new.
+  function useAddressCache(){
+    mailCache = loadCache();
+    readIds = {};
+    loadRead().forEach(function(id){ readIds[id] = true; });
+    openIds = {}; bodyCache = {}; lastIds = '';
+  }
+
   function toast(msg){
     toastEl.textContent = msg;
     toastEl.classList.add('show');
@@ -100,8 +161,9 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
   function newAddress(){
     setStatus('Creating…');
     apiGetAddress().then(function(d){
+      saveCache(); saveRead();
       sid = d.sid_token; email = d.email_addr;
-      readIds = {}; openIds = {}; bodyCache = {}; lastIds = '';
+      useAddressCache();
       save();
       addrEl.textContent = email;
       renderEmpty();
@@ -132,10 +194,23 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
       }
       lastCheck = Date.now();
       var list = d.list || [];
-      var ids = mailIds(list);
+      var now = Date.now();
+      list.forEach(function(m){
+        var id = String(m.mail_id);
+        var prev = mailCache[id] || {};
+        mailCache[id] = {
+          id: id,
+          from: m.mail_from || '', subject: m.mail_subject || '(no subject)',
+          ts: m.mail_timestamp || 0,
+          body: prev.body, cachedAt: now
+        };
+      });
+      saveCache();
+      var merged = cachedList();
+      var ids = mailIds(merged);
       if(ids !== lastIds){
         lastIds = ids;
-        if(list.length) renderList(list);
+        if(merged.length) renderList(merged);
         else renderEmpty();
       }
       setStatus('<span class="dotpulse"></span>Live');
@@ -247,9 +322,10 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
       var sub = document.createElement('div'); sub.className = 'mail-sub';
       sub.textContent = m.mail_subject || '(no subject)';
       var body = document.createElement('div'); body.className = 'mail-body';
-      if(isOpen && bodyCache[id]){
+      var cachedBody = bodyCache[id] || (mailCache[id] && mailCache[id].body);
+      if(isOpen && cachedBody){
         body.dataset.loaded = '1';
-        body.appendChild(makeFrame(bodyCache[id]));
+        body.appendChild(makeFrame(cachedBody));
       } else {
         body.innerHTML = '<span style="color:var(--muted)">Loading…</span>';
       }
@@ -265,7 +341,8 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
     if(!opening){ delete openIds[id]; return; }
     openIds[id] = true;
     if(bodyEl.dataset.loaded) return;
-    if(bodyCache[id]){ showBody(div, id, bodyEl, bodyCache[id]); return; }
+    var cb = bodyCache[id] || (mailCache[id] && mailCache[id].body);
+    if(cb){ showBody(div, id, bodyEl, cb); return; }
     apiFetch(sid, id).then(function(d){
       showBody(div, id, bodyEl, d.mail_body || '');
     }).catch(function(){
@@ -277,12 +354,14 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
     bodyEl.dataset.loaded = '1';
     bodyEl.innerHTML = '';
     bodyCache[id] = html;
+    cacheBody(id, html);
     if(!html.trim()){
       bodyEl.textContent = '(empty message)';
     } else {
       bodyEl.appendChild(makeFrame(html));
     }
     readIds[id] = true;
+    saveRead();
     div.classList.remove('unread');
   }
 
@@ -297,8 +376,9 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
     setStatus('Setting…');
     apiSetUser(sid, n).then(function(d){
       if(d.email_addr){
+        saveCache(); saveRead();
         email = d.email_addr;
-        readIds = {}; openIds = {}; bodyCache = {}; lastIds = '';
+        useAddressCache();
         save();
         addrEl.textContent = email;
         renderEmpty();
@@ -315,8 +395,16 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
   });
 
   // boot
+  mailCache = loadCache();
+  readIds = {};
+  loadRead().forEach(function(id){ readIds[id] = true; });
   if(email && sid){
     addrEl.textContent = email;
+    var cached = cachedList();
+    if(cached.length){
+      renderList(cached);
+      lastIds = mailIds(cached);
+    }
     checkInbox(false);
   } else {
     newAddress();
