@@ -194,7 +194,7 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
       'img{max-width:100%;height:auto;}' +
       'pre{white-space:pre-wrap;overflow-wrap:anywhere;}' +
       'a{overflow-wrap:anywhere;}' +
-      '#emroot{transform-origin:top left;}' +
+      '#emroot{}' +
       '</style>' +
       '</head><body><div id="emroot">' + html + '</div></body></html>');
     f.style.cssText = 'width:100%;max-width:100%;height:160px;border:0;border-radius:8px;background:#fff;display:block;overflow:hidden;';
@@ -204,15 +204,14 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
         if(!d) return;
         var root = d.getElementById('emroot');
         if(!root) return;
-        root.style.transform = '';
-        root.style.width = '';
+        root.style.zoom = '';
         var availW = f.clientWidth || 320;
         var natW = root.scrollWidth || availW;
         var natH = root.scrollHeight || 120;
         if(natW > availW + 1){
+          // zoom (unlike transform) shrinks the layout too, so no scrollbar
           var s = availW / natW;
-          root.style.width = natW + 'px';
-          root.style.transform = 'scale(' + s + ')';
+          root.style.zoom = s;
           f.style.height = Math.ceil(natH * s + 16) + 'px';
         } else {
           f.style.height = Math.ceil(natH + 16) + 'px';
