@@ -256,13 +256,29 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
     }).then(function(){ restoring = false; });
   }
 
+  // Force every email link to open in a new tab (same tab group),
+  // with no opener access back into the mail app.
+  function hardenLinks(f){
+    try {
+      var d = f.contentDocument;
+      if(!d) return;
+      var links = d.getElementsByTagName('a');
+      for(var i = 0; i < links.length; i++){
+        links[i].target = '_blank';
+        links[i].rel = 'noopener';
+      }
+    } catch(e){}
+  }
+
   function makeFrame(html){
     var f = document.createElement('iframe');
     // allow-same-origin but NO scripts: the parent can measure and scale the
     // email to fit, while email JavaScript stays blocked.
-    f.setAttribute('sandbox', 'allow-same-origin');
+    // allow-popups (+ escape) so tapped links open in a new tab instead of
+    // being trapped or killed by the sandbox.
+    f.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');
     f.setAttribute('srcdoc',
-      '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<!DOCTYPE html><html><head><base target="_blank"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<style>' +
       'html,body{margin:0!important;padding:0!important;}' +
       'body{padding:8px;font-family:sans-serif;font-size:14px;line-height:1.6;color:#111;overflow-wrap:anywhere;word-break:break-word;}' +
@@ -294,6 +310,7 @@ if(typeof window !== 'undefined' && typeof document !== 'undefined'){
       } catch(e){}
     }
     f.addEventListener('load', function(){
+      hardenLinks(f);
       fit();
       setTimeout(fit, 600);
       setTimeout(fit, 2000);
